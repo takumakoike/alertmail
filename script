@@ -1,0 +1,194 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+//積み上げ予定
+// ツイートを投稿
+function postTweet() {
+  var service  = twitter.getService();
+  var endPointUrl = 'https://api.twitter.com/1.1/statuses/update.json';
+  
+  //Tweet範囲を決定→積み上げ予定はA1〜最大B7
+  /*
+    Tweet範囲：スプレッドシート上でB列に項目が入力されている行
+    これをF2セルで取得しているので、GAS上ではF2セル情報を取得すればOK
+  */
+  
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('積み上げ予定');
+    const LASTROW = sheet.getRange(2,5).getValue();//行番号・列番号・行数・列数
+    console.log(LASTROW);
+
+  // Tweet範囲の情報を取得
+  /*
+    ・A列とB列について、LASTROW分の行数を2次元配列で取得する
+    ・情報取得については見た目も整える
+      →積み上げ情報全体を2次元配列で取得し、for文ループで取り出した時に改行処理を追加する
+  */
+  
+  var stacks = sheet.getRange(2,1,LASTROW,2).getValues();
+  // console.log(stacks);//ここで実際のツイート範囲が正しく2次元配列で取得されているか確認できる。
+  var stack = '';
+    for(var i = 0; i < LASTROW; i++){
+      stack += stacks[i][0] ; //index0番目　A列の情報
+      stack += stacks[i][1] + '\n'; //index1番目　B列の情報。一つずつ改行を加える
+    }
+  // console.log(stack);//ここで実際のツイートのように整形された文面を確認できる。
+
+  //  メッセージを送信する
+    var response = {
+      muteHttpExceptions: true,
+      method: 'post',
+      payload: {
+        status: stack
+      }
+    }
+  // console.log(response);
+    var msg_body = "本日の積み上げ予定として以下をTweetしています。\n\n" + stack;
+    var msg_name = {name: "積み上げプログラム：予定編"}
+  GmailApp.sendEmail("送信先アドレスを入力", "メールタイトルを入力", msg_body, msg_name);
+  service.fetch(endPointUrl,response);
+  setTrigger();
+};
+
+//トリガー設定
+function setTrigger(){
+  // var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('積み上げ予定');
+  var sheet = SpreadsheetApp.openByUrl("スプレッドシートのURLを入力").getSheetByName('積み上げ予定');
+    var al_year = sheet.getRange(6,7).getValue();
+    var al_month = sheet.getRange(7,7).getValue();
+    var al_day = sheet.getRange(8,7).getValue();
+    var al_hour = sheet.getRange(9,7).getValue();
+    var al_minute = sheet.getRange(10,7).getValue();
+    // console.log(al_year);
+    // console.log(al_month);
+    // console.log(al_day);
+    // console.log(al_hour);
+    // console.log(al_minute);
+  var al_time = new Date();
+  // console.log(typeof(al_time));
+    al_time.setFullYear(al_year);
+    al_time.setMonth(al_month);
+    al_time.setDate(al_day);
+    al_time.setHours(al_hour);
+    al_time.setMinutes(al_minute);
+ScriptApp.newTrigger('alertGmail').timeBased().at(al_time).inTimezone('Asia/Tokyo').create();
+// console.log(ScriptApp.newTrigger('alertGmail').timeBased().at(al_time).inTimezone('Asia/Tokyo').create());
+}
+
+//アラートメール送信
+function alertGmail(){
+    const recipient = ''; //送信先のメールアドレス
+    const subject = '今日の積み上げ報告時間です'; //送信メールの件名
+      const stack_result = ''; //スプレッドシートURLを入力
+    const body = '積み上げ報告シートはこちら\n' + stack_result;
+    const name = {name: "積み上げプログラム"};
+  GmailApp.sendEmail(recipient, subject, body, name);  
+  deleteTrigger(); 
+  
+}
+
+//トリガー削除
+function deleteTrigger() {
+  var allTriggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < allTriggers.length; i++) {
+    if (allTriggers[i].getHandlerFunction() == "alertGmail") {
+      ScriptApp.deleteTrigger(allTriggers[i]);
+      break;
+    }
+  }
+}
+/////////////////////////////////////////////////////////////////////////////////////////////
+//積み上げ結果
+// ツイートを投稿
+function resultTweet() {
+  var service  = twitter.getService();
+  var endPointUrl = 'https://api.twitter.com/1.1/statuses/update.json';
+  //Twitterに投稿するメッセージを作成する
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('積み上げ結果');
+    const rLASTROW = sheet.getRange(2,5).getValue();//行番号・列番号・行数・列数
+    console.log(rLASTROW);
+  //Tweet範囲を決定→積み上げ予定はA1〜最大B7
+    var tweet_range = sheet.getRange(2,1,rLASTROW,2).getValues();
+    console.log(tweet_range); //積み上げ部分の取得はOK
+    var r_tweet = "";
+    for(j = 0; j < rLASTROW; j++){
+     r_tweet += tweet_range[j][0];
+     r_tweet += tweet_range[j][1] + "\n";
+    }
+    console.log(r_tweet);
+
+  //  メッセージを送信する
+    var response = {
+      method: 'post',
+      payload: {
+        status: r_tweet
+      }
+    }
+    var percent = sheet.getRange(2,2).getValue();
+    var start = sheet.getRange(2,6).getValue();
+    var r_msg_body = "本日の達成率："　+ percent + "　でした。明日も頑張りましょう。\n" + "以下Tweet内容です。\n\n" + r_tweet + "\n\n 明日の積み上げ投稿メールは今から" + start + "時間後に送られてきます。\n明日も頑張りましょう。";
+    var r_name = {name: "積み上げプログラム：結果編"}
+    GmailApp.sendEmail('送信先アドレスを入力', "送信メールの件名", r_msg_body, r_name);
+    service.fetch(endPointUrl,response);
+    resultSetTrigger();
+
+};
+
+//トリガー設定
+function resultSetTrigger(){
+  var sheet = SpreadsheetApp.openByUrl("スプレッドシートのURLを入力").getSheetByName('積み上げ結果');
+    var al_year = sheet.getRange(6,7).getValue();
+    var al_month = sheet.getRange(7,7).getValue();
+    var al_day = sheet.getRange(8,7).getValue();
+    var al_hour = sheet.getRange(9,7).getValue();
+    var al_minute = sheet.getRange(10,7).getValue();
+  var al_time = new Date();
+    al_time.setFullYear(al_year);
+    al_time.setMonth(al_month);
+    al_time.setDate(al_day);
+    al_time.setHours(al_hour);
+    al_time.setMinutes(al_minute);
+  // console.log(al_time);
+ScriptApp.newTrigger('planGmail').timeBased().at(al_time).inTimezone('Asia/Tokyo').create();
+}
+
+//アラートメール送信
+function planGmail(){
+    const recipient = ''; //送信先のメールアドレス
+    const subject = ''; //送信メールの件名
+      const stack_schedule = ''; //スプレッドシートのURL
+    const body = '積み上げ予定シートはこちら\n' + stack_schedule ;
+    const options = {name: "積み上げプログラム"};
+  GmailApp.sendEmail(recipient, subject, body, options);  
+  resultDeleteTrigger();
+}
+
+
+//トリガー削除
+function resultDeleteTrigger() {
+  var allTriggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < allTriggers.length; i++) {
+    if (allTriggers[i].getHandlerFunction() == "planGmail") {
+      ScriptApp.deleteTrigger(allTriggers[i]);
+      break;
+    }
+  }
+}
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+//認証用インスタンスの生成
+var twitter = TwitterWebService.getInstance(
+  '',//API Key
+  ''//API secret key
+);
+//アプリを連携認証する
+function authorize() {
+  twitter.authorize();
+}
+//認証を解除する
+function reset() {
+  twitter.reset();
+}
+//認証後のコールバック
+function authCallback(request) {
+  return twitter.authCallback(request);
+}
+//上記アプリ連携・認証については一度実行してエラーなければ基本的に触れなくてOK
